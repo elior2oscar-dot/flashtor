@@ -10,7 +10,7 @@ import { ClientsView } from '@/components/admin/views/ClientsView';
 import { DashboardView } from '@/components/admin/views/DashboardView';
 import { TeamView } from '@/components/admin/views/TeamView';
 import { useSupabaseSession } from '@/hooks/useSupabaseSession';
-import { callPlatformAdminUsers, seedDefaultBusinessHours } from '@/lib/adminApi';
+import { callPlatformAdminUsers, ensureClientBookingReady } from '@/lib/adminApi';
 import { Button } from '@/components/ui/button';
 
 export function PlatformAdminPanel() {
@@ -166,7 +166,7 @@ export function PlatformAdminPanel() {
         return;
       }
       if (data?.id) {
-        await seedDefaultBusinessHours(supabase, data.id);
+        await ensureClientBookingReady(supabase, data.id);
       }
     } else if (businessModal.business) {
       const { error } = await supabase.from('businesses').update(payload).eq('id', businessModal.business.id);
@@ -184,6 +184,11 @@ export function PlatformAdminPanel() {
 
   async function toggleBusinessActive(business: BusinessRow) {
     await supabase.from('businesses').update({ is_active: !business.is_active }).eq('id', business.id);
+    await refreshAll();
+  }
+
+  async function prepareBooking(business: BusinessRow) {
+    await ensureClientBookingReady(supabase, business.id);
     await refreshAll();
   }
 
@@ -326,6 +331,7 @@ export function PlatformAdminPanel() {
               setMemberModal({ open: true, mode: 'create', businessId: b.id });
             }}
             onToggleActive={(b) => void toggleBusinessActive(b)}
+            onPrepareBooking={(b) => void prepareBooking(b)}
           />
         ) : null}
         {nav === 'team' ? (

@@ -47,9 +47,4 @@ export function slugifyName(name: string) {
     .slice(0, 48);
 }
 
-export function bookingUrlForSlug(slug: string) {
-  if (typeof window !== 'undefined') {
-    return `${window.location.origin}/flashtor/book/${slug}`;
-  }
-  return `/flashtor/book/${slug}`;
-}
+export { bookingPath, bookingUrl, portalPath, portalUrl } from '@/lib/paths';

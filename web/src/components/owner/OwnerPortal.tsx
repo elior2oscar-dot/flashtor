@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Calendar, Copy, LogOut, Users } from 'lucide-react';
 
 import { useSupabaseSession } from '@/hooks/useSupabaseSession';
+import { bookingUrl } from '@/lib/paths';
 import { Button } from '@/components/ui/button';
 
 type Business = {
@@ -48,10 +49,7 @@ export function OwnerPortal({ slug }: { slug: string }) {
   const [dataLoading, setDataLoading] = useState(false);
   const [copyMsg, setCopyMsg] = useState('');
 
-  const bookingBase =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/flashtor/book/${slug}`
-      : `/flashtor/book/${slug}`;
+  const bookingBase = bookingUrl(slug);
 
   const loadBusiness = useCallback(async () => {
     setBusinessError('');

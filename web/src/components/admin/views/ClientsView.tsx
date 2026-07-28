@@ -1,12 +1,13 @@
 'use client';
 
-import { Copy, Pencil, Plus, UserPlus } from 'lucide-react';
+import { useState } from 'react';
+import { Copy, ExternalLink, Pencil, Plus, UserPlus } from 'lucide-react';
 
 import { AdminPageHeader, ExternalPortalLink } from '@/components/admin/AdminShell';
 import {
   SUBSCRIPTION_PLANS,
   SUBSCRIPTION_STATUSES,
-  bookingUrlForSlug,
+  bookingUrl,
   type BusinessRow,
 } from '@/components/admin/types';
 import { Button } from '@/components/ui/button';
@@ -25,13 +26,25 @@ type ClientsViewProps = {
   onEdit: (b: BusinessRow) => void;
   onAddMember: (b: BusinessRow) => void;
   onToggleActive: (b: BusinessRow) => void;
+  onPrepareBooking: (b: BusinessRow) => void;
 };
 
-export function ClientsView({ businesses, onCreate, onEdit, onAddMember, onToggleActive }: ClientsViewProps) {
+export function ClientsView({
+  businesses,
+  onCreate,
+  onEdit,
+  onAddMember,
+  onToggleActive,
+  onPrepareBooking,
+}: ClientsViewProps) {
+  const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+
   async function copyLink(slug: string) {
-    const url = bookingUrlForSlug(slug);
+    const url = bookingUrl(slug);
     try {
       await navigator.clipboard.writeText(url);
+      setCopiedSlug(slug);
+      setTimeout(() => setCopiedSlug(null), 2000);
     } catch {
       // ignore
     }
@@ -58,6 +71,7 @@ export function ClientsView({ businesses, onCreate, onEdit, onAddMember, onToggl
               <th className="px-4 py-3 font-medium">Plan</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Phone</th>
+              <th className="px-4 py-3 font-medium">Booking link</th>
               <th className="px-4 py-3 font-medium">Active</th>
               <th className="px-4 py-3 font-medium">Actions</th>
             </tr>
@@ -65,7 +79,7 @@ export function ClientsView({ businesses, onCreate, onEdit, onAddMember, onToggl
           <tbody>
             {businesses.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={8} className="px-4 py-8 text-center text-zinc-500">
                   No clients yet. Create one to get a slug and booking link.
                 </td>
               </tr>
@@ -77,6 +91,43 @@ export function ClientsView({ businesses, onCreate, onEdit, onAddMember, onToggl
                   <td className="px-4 py-3">{planLabel(b.subscription_plan ?? 'trial')}</td>
                   <td className="px-4 py-3">{statusLabel(b.subscription_status ?? 'active')}</td>
                   <td className="px-4 py-3">{b.phone}</td>
+                  <td className="max-w-[220px] px-4 py-3">
+                    {b.slug ? (
+                      <div className="flex flex-col gap-1">
+                        <span className="truncate font-mono text-[11px] text-zinc-400" title={bookingUrl(b.slug)}>
+                          {bookingUrl(b.slug)}
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-xs text-emerald-400 underline"
+                            onClick={() => void copyLink(b.slug!)}
+                          >
+                            <Copy className="size-3" />
+                            {copiedSlug === b.slug ? 'Copied' : 'Copy'}
+                          </button>
+                          <a
+                            href={bookingUrl(b.slug)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-sky-400 underline"
+                          >
+                            <ExternalLink className="size-3" />
+                            Open
+                          </a>
+                          <button
+                            type="button"
+                            className="text-xs text-zinc-500 underline"
+                            onClick={() => onPrepareBooking(b)}
+                          >
+                            Refresh slots
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                   <td className="px-4 py-3">{b.is_active ? 'Yes' : 'No'}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-2">
@@ -91,14 +142,6 @@ export function ClientsView({ businesses, onCreate, onEdit, onAddMember, onToggl
                       {b.slug ? (
                         <>
                           <ExternalPortalLink slug={b.slug} />
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 text-xs text-zinc-400 underline"
-                            onClick={() => void copyLink(b.slug!)}
-                          >
-                            <Copy className="size-3" />
-                            Booking link
-                          </button>
                         </>
                       ) : null}
                       <button

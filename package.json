@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "supabase": "supabase"
+    "supabase": "supabase",
+    "db:push": "powershell -ExecutionPolicy Bypass -File ./scripts/push-db.ps1"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.56.0",

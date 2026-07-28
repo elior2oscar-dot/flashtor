@@ -126,7 +126,8 @@ export function CustomerBookingPage({ businessIdentifier }: Props) {
 
     let businessQuery = supabase
       .from('businesses')
-      .select('id, name, phone, whatsapp_phone, timezone');
+      .select('id, name, phone, whatsapp_phone, timezone')
+      .eq('is_active', true);
 
     businessQuery = isUuid(businessIdentifier)
       ? businessQuery.eq('id', businessIdentifier)
@@ -137,7 +138,7 @@ export function CustomerBookingPage({ businessIdentifier }: Props) {
     if (businessError || !businessData) {
       const hint =
         businessError?.code === 'PGRST116'
-          ? 'לא נמצא עסק בקישור הזה. ודאו שהרצתם seed (למשל slug e2e-demo) ב-Supabase.'
+          ? 'לא נמצא עסק פעיל בקישור הזה. בדקו את ה-slug או פנו לבעל העסק.'
           : 'לא ניתן לטעון את פרטי העסק כרגע.';
       setStatusMessage(hint);
       setLoading(false);

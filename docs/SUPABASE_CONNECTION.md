@@ -29,12 +29,10 @@ Set in `supabase/.env.local`:
 Apply schema:
 
 ```powershell
-npm install pg
-node scripts/apply-migrations-pg.js
-node scripts/bootstrap-demo-data.js
+.\scripts\push-db.ps1
 ```
 
-Or: `.\scripts\push-db.ps1` (after `SUPABASE_DB_PASSWORD` is set).
+Or (direct Postgres): `npm install pg` then `node scripts/apply-migrations-pg.js`.
 
 ## Supabase CLI link
 

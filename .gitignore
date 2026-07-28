@@ -10,3 +10,4 @@ mobile/.env
 .expo/
 dist/
 *.log
+supabase/.temp/

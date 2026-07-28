@@ -9,6 +9,7 @@ import {
   type BusinessRow,
   type SubscriptionPlan,
   type SubscriptionStatus,
+  bookingUrl,
   slugifyName,
 } from '@/components/admin/types';
 import { Button } from '@/components/ui/button';
@@ -131,6 +132,19 @@ export function BusinessFormModal({
             pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
           />
         </Field>
+        {form.slug ? (
+          <div className="rounded-lg border border-zinc-700 bg-zinc-950/80 px-3 py-2 text-xs text-zinc-400">
+            <span className="text-zinc-500">Customer booking link: </span>
+            <a
+              href={bookingUrl(form.slug)}
+              target="_blank"
+              rel="noreferrer"
+              className="break-all text-sky-400 underline"
+            >
+              {bookingUrl(form.slug)}
+            </a>
+          </div>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Phone">
             <input

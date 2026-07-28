@@ -7,8 +7,8 @@ Full checklist: [E2E_TEST.md](E2E_TEST.md). Product roles: [PRODUCT_FLOW.md](PRO
 ## Recommended path (remote Supabase + local web tunnel)
 
 1. Create a Supabase project in the dashboard.
-2. Run migrations `001` through `005` in SQL Editor (or `npx supabase db push` after linking).
-3. Optional seed: edit `supabase/seed-e2e.sql` (owner UUID) and run in SQL Editor.
+2. Run migrations `001` through `010` in SQL Editor (or `npx supabase db push` after linking).
+3. Create demo businesses and owners via **Platform admin** (`/admin`) or SQL as needed.
 4. Deploy Edge Functions:
    ```powershell
    npx supabase login

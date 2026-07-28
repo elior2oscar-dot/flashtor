@@ -37,4 +37,4 @@ npx supabase link --project-ref $ProjectRef --password $dbPassword
 Write-Host "Pushing migrations..."
 npx supabase db push
 
-Write-Host "Done. Optional: run seed-e2e.sql in SQL Editor (with owner Auth UUID)."
+Write-Host "Done."
