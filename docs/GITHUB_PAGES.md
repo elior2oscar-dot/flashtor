@@ -8,7 +8,7 @@ For repo `elior2oscar-dot/flashtor`:
 
 **https://elior2oscar-dot.github.io/flashtor/**
 
-Booking example: `https://elior2oscar-dot.github.io/flashtor/book/e2e-demo/`
+Demo booking: `https://elior2oscar-dot.github.io/flashtor/demo/`
 
 ## One-time GitHub setup
 

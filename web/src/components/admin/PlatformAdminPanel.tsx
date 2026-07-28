@@ -1,43 +1,61 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { Building2, LogOut } from 'lucide-react';
 
+import { AdminShell } from '@/components/admin/AdminShell';
+import { BusinessFormModal, type BusinessFormValues } from '@/components/admin/modals/BusinessFormModal';
+import { MemberFormModal, type MemberFormMode, type MemberFormSubmit } from '@/components/admin/modals/MemberFormModal';
+import type { AdminNav, BusinessRow, MemberRow } from '@/components/admin/types';
+import { ClientsView } from '@/components/admin/views/ClientsView';
+import { DashboardView } from '@/components/admin/views/DashboardView';
+import { TeamView } from '@/components/admin/views/TeamView';
 import { useSupabaseSession } from '@/hooks/useSupabaseSession';
+import { callPlatformAdminUsers, seedDefaultBusinessHours } from '@/lib/adminApi';
 import { Button } from '@/components/ui/button';
 
-type BusinessRow = {
-  id: string;
-  name: string;
-  slug: string | null;
-  phone: string;
-  is_active: boolean;
-  created_at: string;
-};
-
-type Stats = {
-  businesses: number;
-  appointments: number;
-  waitlist: number;
-};
-
 export function PlatformAdminPanel() {
-  const { supabase, user, loading: authLoading, signIn, signOut } = useSupabaseSession();
+  const { supabase, session, user, loading: authLoading, signIn, signOut } = useSupabaseSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [nav, setNav] = useState<AdminNav>('dashboard');
   const [businesses, setBusinesses] = useState<BusinessRow[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [members, setMembers] = useState<MemberRow[]>([]);
+  const [stats, setStats] = useState<{ businesses: number; appointments: number; waitlist: number } | null>(null);
   const [loadError, setLoadError] = useState('');
+
+  const [businessModal, setBusinessModal] = useState<{ open: boolean; mode: 'create' | 'edit'; business: BusinessRow | null }>({
+    open: false,
+    mode: 'create',
+    business: null,
+  });
+  const [businessSaving, setBusinessSaving] = useState(false);
+  const [businessFormError, setBusinessFormError] = useState('');
+
+  const [memberModal, setMemberModal] = useState<{
+    open: boolean;
+    mode: MemberFormMode;
+    businessId?: string;
+    member?: MemberRow;
+  }>({ open: false, mode: 'create' });
+  const [memberSaving, setMemberSaving] = useState(false);
+  const [memberFormError, setMemberFormError] = useState('');
 
   const checkAdmin = useCallback(async () => {
     if (!user) {
       setIsAdmin(false);
       return;
     }
+
+    const { data: rpcAdmin, error: rpcError } = await supabase.rpc('is_platform_admin');
+
+    if (!rpcError && rpcAdmin === true) {
+      setIsAdmin(true);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('platform_admins')
       .select('user_id')
@@ -46,51 +64,76 @@ export function PlatformAdminPanel() {
 
     if (error) {
       setIsAdmin(false);
-      setLoadError('לא ניתן לאמת הרשאות אדמין. ודאו שהמיגרציה 007 הוחלה.');
+      setLoadError(
+        `Could not verify admin access (${error.message}). Apply migrations 007–008 and add a row to platform_admins.`
+      );
       return;
     }
     setIsAdmin(!!data);
   }, [supabase, user]);
 
-  const loadPlatformData = useCallback(async () => {
+  const loadBusinesses = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('businesses')
+      .select(
+        'id, name, slug, phone, whatsapp_phone, timezone, is_active, subscription_plan, subscription_status, created_at'
+      )
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    if (error) {
+      setLoadError(error.message);
+      return [];
+    }
+    return (data ?? []) as BusinessRow[];
+  }, [supabase]);
+
+  const loadMembers = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('business_members')
+      .select('user_id, business_id, role, created_at, businesses(name, slug)')
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    if (error) {
+      setLoadError(error.message);
+      return [];
+    }
+    return (data ?? []).map((row) => {
+      const biz = row.businesses as { name: string; slug: string | null } | { name: string; slug: string | null }[] | null;
+      return {
+        ...row,
+        businesses: Array.isArray(biz) ? biz[0] ?? null : biz,
+      };
+    }) as MemberRow[];
+  }, [supabase]);
+
+  const refreshAll = useCallback(async () => {
     setLoadError('');
-    const [bizRes, apptRes, waitRes] = await Promise.all([
-      supabase
-        .from('businesses')
-        .select('id, name, slug, phone, is_active, created_at')
-        .order('created_at', { ascending: false })
-        .limit(200),
+    const [bizList, memberList, apptRes, waitRes] = await Promise.all([
+      loadBusinesses(),
+      loadMembers(),
       supabase.from('appointments').select('id', { count: 'exact', head: true }),
       supabase.from('waitlist').select('id', { count: 'exact', head: true }),
     ]);
 
-    if (bizRes.error) {
-      setLoadError(bizRes.error.message);
-      return;
-    }
-
-    setBusinesses(bizRes.data ?? []);
+    setBusinesses(bizList);
+    setMembers(memberList);
     setStats({
-      businesses: bizRes.data?.length ?? 0,
+      businesses: bizList.length,
       appointments: apptRes.count ?? 0,
       waitlist: waitRes.count ?? 0,
     });
-  }, [supabase]);
+  }, [loadBusinesses, loadMembers, supabase]);
 
   useEffect(() => {
-    if (!authLoading && user) {
-      void checkAdmin();
-    }
-    if (!authLoading && !user) {
-      setIsAdmin(false);
-    }
+    if (!authLoading && user) void checkAdmin();
+    if (!authLoading && !user) setIsAdmin(false);
   }, [authLoading, user, checkAdmin]);
 
   useEffect(() => {
-    if (isAdmin) {
-      void loadPlatformData();
-    }
-  }, [isAdmin, loadPlatformData]);
+    if (isAdmin) void refreshAll();
+  }, [isAdmin, refreshAll]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -98,22 +141,101 @@ export function PlatformAdminPanel() {
     setSubmitting(true);
     const { error } = await signIn(email.trim(), password);
     setSubmitting(false);
-    if (error) setAuthError('התחברות נכשלה.');
+    if (error) setAuthError('Sign-in failed.');
+  }
+
+  async function saveBusiness(values: BusinessFormValues) {
+    setBusinessSaving(true);
+    setBusinessFormError('');
+    const payload = {
+      name: values.name.trim(),
+      slug: values.slug.trim() || null,
+      phone: values.phone.trim(),
+      whatsapp_phone: values.whatsapp_phone.trim() || null,
+      timezone: values.timezone.trim() || 'Asia/Jerusalem',
+      subscription_plan: values.subscription_plan,
+      subscription_status: values.subscription_status,
+      is_active: values.is_active,
+    };
+
+    if (businessModal.mode === 'create') {
+      const { data, error } = await supabase.from('businesses').insert(payload).select('id').single();
+      if (error) {
+        setBusinessFormError(error.message);
+        setBusinessSaving(false);
+        return;
+      }
+      if (data?.id) {
+        await seedDefaultBusinessHours(supabase, data.id);
+      }
+    } else if (businessModal.business) {
+      const { error } = await supabase.from('businesses').update(payload).eq('id', businessModal.business.id);
+      if (error) {
+        setBusinessFormError(error.message);
+        setBusinessSaving(false);
+        return;
+      }
+    }
+
+    setBusinessSaving(false);
+    setBusinessModal({ open: false, mode: 'create', business: null });
+    await refreshAll();
   }
 
   async function toggleBusinessActive(business: BusinessRow) {
-    const { error } = await supabase
-      .from('businesses')
-      .update({ is_active: !business.is_active })
-      .eq('id', business.id);
+    await supabase.from('businesses').update({ is_active: !business.is_active }).eq('id', business.id);
+    await refreshAll();
+  }
 
-    if (!error) {
-      await loadPlatformData();
+  async function submitMemberForm(payload: MemberFormSubmit) {
+    setMemberSaving(true);
+    setMemberFormError('');
+
+    if (payload.mode === 'edit' && memberModal.member) {
+      const { error } = await supabase
+        .from('business_members')
+        .update({ role: payload.role })
+        .eq('user_id', memberModal.member.user_id)
+        .eq('business_id', memberModal.member.business_id);
+      if (error) {
+        setMemberFormError(error.message);
+        setMemberSaving(false);
+        return;
+      }
+    } else if (payload.mode === 'remove' && memberModal.member) {
+      const { error } = await supabase
+        .from('business_members')
+        .delete()
+        .eq('user_id', memberModal.member.user_id)
+        .eq('business_id', memberModal.member.business_id);
+      if (error) {
+        setMemberFormError(error.message);
+        setMemberSaving(false);
+        return;
+      }
+    } else if ((payload.mode === 'create' || payload.mode === 'attach') && session) {
+      const result = await callPlatformAdminUsers(session, {
+        action: payload.mode === 'create' ? 'create_owner' : 'attach_owner',
+        email: payload.email,
+        password: payload.mode === 'create' ? payload.password : undefined,
+        businessId: payload.businessId,
+        role: payload.role,
+        fullName: payload.fullName,
+      });
+      if (result.error) {
+        setMemberFormError(result.error);
+        setMemberSaving(false);
+        return;
+      }
     }
+
+    setMemberSaving(false);
+    setMemberModal({ open: false, mode: 'create' });
+    await refreshAll();
   }
 
   if (authLoading) {
-    return <p className="p-10 text-center text-muted-foreground">טוען...</p>;
+    return <p className="p-10 text-center text-muted-foreground">Loading…</p>;
   }
 
   if (!user) {
@@ -124,11 +246,11 @@ export function PlatformAdminPanel() {
           className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-zinc-100"
         >
           <h1 className="text-xl font-bold">FlashTor Platform Admin</h1>
-          <p className="mt-1 text-sm text-zinc-400">גישה ישירה בלבד — ללא קישור מהאתר הציבורי.</p>
+          <p className="mt-1 text-sm text-zinc-400">Direct URL only — not linked from the public site.</p>
           <div className="mt-6 space-y-3">
             <input
               type="email"
-              placeholder="אימייל"
+              placeholder="Email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -136,7 +258,7 @@ export function PlatformAdminPanel() {
             />
             <input
               type="password"
-              placeholder="סיסמה"
+              placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -144,7 +266,7 @@ export function PlatformAdminPanel() {
             />
             {authError ? <p className="text-sm text-red-400">{authError}</p> : null}
             <Button type="submit" className="w-full" disabled={submitting}>
-              כניסה
+              Sign in
             </Button>
           </div>
         </form>
@@ -154,101 +276,107 @@ export function PlatformAdminPanel() {
 
   if (isAdmin === false) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-zinc-950 text-zinc-100">
-        <p>אין הרשאת אדמין פלטפורמה למשתמש זה.</p>
-        {loadError ? <p className="max-w-md text-center text-sm text-zinc-400">{loadError}</p> : null}
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-zinc-950 px-4 text-zinc-100">
+        <p>This account does not have platform admin permission.</p>
+        <p className="max-w-md text-center text-sm text-zinc-400">
+          Signed in as <span className="text-zinc-200">{user.email ?? 'no email'}</span>
+          <br />
+          User id: <code className="text-xs text-amber-200/90">{user.id}</code>
+        </p>
+        {loadError ? <p className="max-w-md text-center text-sm text-red-400">{loadError}</p> : null}
         <Button variant="outline" onClick={() => void signOut()}>
-          התנתקות
+          Sign out
         </Button>
       </div>
     );
   }
 
   if (isAdmin === null) {
-    return <p className="p-10 text-center">בודק הרשאות...</p>;
+    return <p className="p-10 text-center">Checking permissions…</p>;
   }
 
+  const pageTitles: Record<AdminNav, { title: string; description?: string }> = {
+    dashboard: { title: 'Dashboard', description: 'Platform overview' },
+    clients: { title: 'Clients', description: 'Businesses, slugs, subscriptions' },
+    team: { title: 'Team access', description: 'Owner and manager accounts' },
+  };
+
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <header className="border-b border-zinc-800">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <div>
-            <h1 className="text-lg font-bold">FlashTor · אדמין פלטפורמה</h1>
-            <p className="text-xs text-zinc-500">{user.email}</p>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => void signOut()}>
-            <LogOut className="size-4" />
-          </Button>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl px-4 py-8">
-        {stats ? (
-          <div className="mb-8 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-              <p className="text-xs text-zinc-500">עסקים (מוצגים)</p>
-              <p className="text-2xl font-bold">{stats.businesses}</p>
-            </div>
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-              <p className="text-xs text-zinc-500">תורים (סה״כ)</p>
-              <p className="text-2xl font-bold">{stats.appointments}</p>
-            </div>
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-              <p className="text-xs text-zinc-500">רשומות המתנה</p>
-              <p className="text-2xl font-bold">{stats.waitlist}</p>
-            </div>
-          </div>
+    <>
+      <AdminShell email={user.email} active={nav} onNavigate={setNav} onSignOut={() => void signOut()}>
+        {nav === 'dashboard' ? (
+          <>
+            <h1 className="mb-6 text-2xl font-bold">{pageTitles.dashboard.title}</h1>
+            <DashboardView stats={stats} loadError={loadError} />
+          </>
         ) : null}
+        {nav === 'clients' ? (
+          <ClientsView
+            businesses={businesses}
+            onCreate={() => {
+              setBusinessFormError('');
+              setBusinessModal({ open: true, mode: 'create', business: null });
+            }}
+            onEdit={(b) => {
+              setBusinessFormError('');
+              setBusinessModal({ open: true, mode: 'edit', business: b });
+            }}
+            onAddMember={(b) => {
+              setMemberFormError('');
+              setMemberModal({ open: true, mode: 'create', businessId: b.id });
+            }}
+            onToggleActive={(b) => void toggleBusinessActive(b)}
+          />
+        ) : null}
+        {nav === 'team' ? (
+          <TeamView
+            members={members}
+            onCreateAccount={() => {
+              setMemberFormError('');
+              setMemberModal({ open: true, mode: 'create' });
+            }}
+            onAttach={() => {
+              setMemberFormError('');
+              setMemberModal({ open: true, mode: 'attach' });
+            }}
+            onEdit={(m) => {
+              setMemberFormError('');
+              setMemberModal({ open: true, mode: 'edit', member: m });
+            }}
+            onRemove={(m) => {
+              setMemberFormError('');
+              setMemberModal({ open: true, mode: 'remove', member: m });
+            }}
+          />
+        ) : null}
+      </AdminShell>
 
-        {loadError ? <p className="mb-4 text-sm text-red-400">{loadError}</p> : null}
+      <BusinessFormModal
+        open={businessModal.open}
+        mode={businessModal.mode}
+        business={businessModal.business}
+        saving={businessSaving}
+        error={businessFormError}
+        onClose={() => setBusinessModal({ open: false, mode: 'create', business: null })}
+        onSubmit={(v) => void saveBusiness(v)}
+      />
 
-        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-          <Building2 className="size-5" />
-          עסקים
-        </h2>
-        <div className="overflow-x-auto rounded-xl border border-zinc-800">
-          <table className="w-full min-w-[640px] text-start text-sm">
-            <thead className="bg-zinc-900 text-zinc-400">
-              <tr>
-                <th className="px-4 py-3 font-medium">שם</th>
-                <th className="px-4 py-3 font-medium">slug</th>
-                <th className="px-4 py-3 font-medium">טלפון</th>
-                <th className="px-4 py-3 font-medium">פעיל</th>
-                <th className="px-4 py-3 font-medium">פעולות</th>
-              </tr>
-            </thead>
-            <tbody>
-              {businesses.map((b) => (
-                <tr key={b.id} className="border-t border-zinc-800">
-                  <td className="px-4 py-3">{b.name}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{b.slug ?? '—'}</td>
-                  <td className="px-4 py-3">{b.phone}</td>
-                  <td className="px-4 py-3">{b.is_active ? 'כן' : 'לא'}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      {b.slug ? (
-                        <Link
-                          href={`/portal/${b.slug}`}
-                          className="text-xs text-sky-400 underline"
-                        >
-                          פורטל
-                        </Link>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="text-xs text-amber-400 underline"
-                        onClick={() => void toggleBusinessActive(b)}
-                      >
-                        {b.is_active ? 'השבת' : 'הפעל'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </main>
-    </div>
+      <MemberFormModal
+        open={memberModal.open}
+        mode={memberModal.mode}
+        businesses={businesses}
+        defaultBusinessId={memberModal.businessId}
+        memberLabel={
+          memberModal.member
+            ? `${memberModal.member.businesses?.name ?? 'Business'} · ${memberModal.member.user_id.slice(0, 8)}…`
+            : undefined
+        }
+        memberRole={memberModal.member?.role}
+        saving={memberSaving}
+        error={memberFormError}
+        onClose={() => setMemberModal({ open: false, mode: 'create' })}
+        onSubmit={(p) => void submitMemberForm(p)}
+      />
+    </>
   );
 }

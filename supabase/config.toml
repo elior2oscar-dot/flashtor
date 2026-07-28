@@ -61,3 +61,6 @@ verify_jwt = false
 # Owner-only cancellation requires a valid Supabase Auth session
 [functions.cancel-appointment]
 verify_jwt = true
+
+[functions.platform-admin-users]
+verify_jwt = true
