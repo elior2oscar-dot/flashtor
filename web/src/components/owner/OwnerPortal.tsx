@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { Calendar, Copy, LogOut, Settings, UserRound, Users } from 'lucide-react';
+import { Calendar, Copy, LogOut, Settings, Tag, UserRound, Users } from 'lucide-react';
 
 import { useSupabaseSession } from '@/hooks/useSupabaseSession';
 import { bookingUrl, profileUrl } from '@/lib/paths';
@@ -11,6 +11,7 @@ import { addDays, startOfWeek, toDateInputValue } from '@/lib/scheduling';
 import { Button } from '@/components/ui/button';
 import { OwnerCalendarPanel, type OwnerAppointment } from '@/components/owner/OwnerCalendarPanel';
 import { OwnerProfilePanel } from '@/components/owner/OwnerProfilePanel';
+import { OwnerServicesPanel } from '@/components/owner/OwnerServicesPanel';
 import { OwnerSettingsPanel } from '@/components/owner/OwnerSettingsPanel';
 
 type Business = {
@@ -27,7 +28,7 @@ type WaitlistRow = {
   status: string;
 };
 
-type Tab = 'calendar' | 'waitlist' | 'profile' | 'settings';
+type Tab = 'calendar' | 'waitlist' | 'profile' | 'services' | 'settings';
 
 export function OwnerPortal({ slug }: { slug: string }) {
   const { supabase, user, loading: authLoading, signIn, signOut } = useSupabaseSession();
@@ -332,6 +333,14 @@ export function OwnerPortal({ slug }: { slug: string }) {
             פרופיל
           </Button>
           <Button
+            variant={tab === 'services' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setTab('services')}
+          >
+            <Tag className="ms-1 size-4" />
+            מחירון
+          </Button>
+          <Button
             variant={tab === 'settings' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setTab('settings')}
@@ -343,6 +352,10 @@ export function OwnerPortal({ slug }: { slug: string }) {
 
         {tab === 'profile' && business ? (
           <OwnerProfilePanel supabase={supabase} businessId={business.id} />
+        ) : null}
+
+        {tab === 'services' && business ? (
+          <OwnerServicesPanel supabase={supabase} businessId={business.id} />
         ) : null}
 
         {tab === 'settings' && business ? (

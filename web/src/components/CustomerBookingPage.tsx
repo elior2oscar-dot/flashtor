@@ -19,6 +19,8 @@ type Service = {
   id: string;
   name: string;
   duration_minutes: number;
+  price_ils: number | null;
+  description: string | null;
 };
 
 type Slot = {
@@ -153,9 +155,10 @@ export function CustomerBookingPage({ businessIdentifier }: Props) {
 
     const { data: serviceData, error: servicesError } = await supabase
       .from('services')
-      .select('id, name, duration_minutes')
+      .select('id, name, duration_minutes, price_ils, description')
       .eq('business_id', businessData.id)
       .eq('is_active', true)
+      .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
 
     if (servicesError) {
@@ -229,6 +232,9 @@ export function CustomerBookingPage({ businessIdentifier }: Props) {
       }
 
       if (joinWaitlist || slotOptions.length === 0) {
+        if (services.length > 0 && !selectedServiceId) {
+          throw new Error('יש לבחור טיפול.');
+        }
         const { data: blocked } = await supabase.rpc('is_contact_blocked', {
           p_business_id: resolvedBusinessId,
           p_phone: phone,
@@ -253,6 +259,9 @@ export function CustomerBookingPage({ businessIdentifier }: Props) {
 
         setStatusMessage('נרשמת בהצלחה לרשימת ההמתנה. נעדכן אותך כשיתפנה תור.');
       } else {
+        if (services.length > 0 && !selectedServiceId) {
+          throw new Error('יש לבחור טיפול.');
+        }
         const selectedSlot = slots.find((slot) => slot.id === selectedSlotId);
         if (!selectedSlot) {
           throw new Error('יש לבחור תור פנוי.');
@@ -356,22 +365,47 @@ export function CustomerBookingPage({ businessIdentifier }: Props) {
           </p>
         ) : (
           <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 14 }}>
-            <label style={{ fontWeight: 600, color: '#374151' }}>בחר שירות:</label>
-            <select
-              value={selectedServiceId}
-              onChange={(event) => setSelectedServiceId(event.target.value)}
-              style={inputStyle}
-              required
-            >
-              {services.length === 0 ? (
-                <option value="">אין שירותים פעילים</option>
-              ) : null}
-              {services.map((service) => (
-                <option key={service.id} value={service.id}>
-                  {service.name} ({service.duration_minutes} דק')
-                </option>
-              ))}
-            </select>
+            <label style={{ fontWeight: 600, color: '#374151' }}>בחר טיפול:</label>
+            {services.length === 0 ? (
+              <p style={{ color: '#b91c1c', fontSize: 14, margin: 0 }}>
+                אין טיפולים פעילים כרגע. בעל העסק צריך להגדיר מחירון בפורטל.
+              </p>
+            ) : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {services.map((service) => {
+                  const selected = selectedServiceId === service.id;
+                  const priceLabel =
+                    service.price_ils != null ? `₪${Number(service.price_ils).toFixed(0)}` : null;
+                  return (
+                    <button
+                      key={service.id}
+                      type="button"
+                      onClick={() => setSelectedServiceId(service.id)}
+                      style={{
+                        textAlign: 'right',
+                        padding: '12px 14px',
+                        borderRadius: 12,
+                        border: selected ? '2px solid #2563eb' : '1px solid #d1d5db',
+                        background: selected ? '#eff6ff' : '#ffffff',
+                        cursor: 'pointer',
+                        display: 'grid',
+                        gap: 4,
+                      }}
+                    >
+                      <span style={{ fontWeight: 700, color: '#111827' }}>{service.name}</span>
+                      {service.description ? (
+                        <span style={{ fontSize: 13, color: '#6b7280' }}>{service.description}</span>
+                      ) : null}
+                      <span style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>
+                        {service.duration_minutes} דק׳
+                        {priceLabel ? ` · ${priceLabel}` : ''}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <input type="hidden" value={selectedServiceId} required={services.length > 0} />
 
             <label style={{ fontWeight: 600, color: '#374151', marginTop: 8 }}>בחר תאריך:</label>
 

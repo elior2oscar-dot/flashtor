@@ -59,12 +59,19 @@ export function PublicBusinessProfile({ slug }: { slug: string }) {
 
       setProfile(biz as Profile);
 
-      const [gal, pr] = await Promise.all([
+      const [gal, svc, pr] = await Promise.all([
         supabase
           .from('business_gallery_images')
           .select('id, image_url')
           .eq('business_id', biz.id)
           .order('sort_order'),
+        supabase
+          .from('services')
+          .select('id, name, price_ils, description, duration_minutes')
+          .eq('business_id', biz.id)
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true })
+          .order('name', { ascending: true }),
         supabase
           .from('business_price_items')
           .select('id, name, price_ils, description')
@@ -73,7 +80,20 @@ export function PublicBusinessProfile({ slug }: { slug: string }) {
       ]);
 
       setGallery((gal.data as GalleryRow[]) ?? []);
-      setPrices((pr.data as PriceRow[]) ?? []);
+      const fromServices: PriceRow[] = ((svc.data as {
+        id: string;
+        name: string;
+        price_ils: number | null;
+        description: string | null;
+        duration_minutes: number;
+      }[]) ?? []).map((s) => ({
+        id: s.id,
+        name: s.name,
+        price_ils: s.price_ils,
+        description: [s.description, `${s.duration_minutes} דק׳`].filter(Boolean).join(' · ') || null,
+      }));
+      const fromItems = (pr.data as PriceRow[]) ?? [];
+      setPrices(fromServices.length > 0 ? fromServices : fromItems);
       setLoading(false);
     })();
   }, [slug]);

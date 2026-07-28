@@ -323,8 +323,10 @@ export function OwnerProfilePanel({ supabase, businessId }: OwnerProfilePanelPro
       <section className="rounded-xl border border-border bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-lg font-semibold">מחירון</h2>
-            <p className="mt-1 text-sm text-muted-foreground">העלו PDF או הזינו פריטים ידנית.</p>
+            <h2 className="text-lg font-semibold">קטלוג PDF</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              טיפולים לזימון (שם, משך, מחיר) מנוהלים בטאב <strong>מחירון</strong>. כאן אפשר לצרף PDF לתצוגה בפרופיל.
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-input bg-background px-3 py-2 text-sm">
