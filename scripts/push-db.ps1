@@ -12,9 +12,21 @@ if (-not (Test-Path $EnvFile)) {
 }
 
 $dbPassword = $null
+$dbHost = "db.$ProjectRef.supabase.co"
+$dbPort = "5432"
+$dbName = "postgres"
+$dbUser = "postgres"
+$databaseUrl = $null
+
 Get-Content $EnvFile | ForEach-Object {
-  if ($_ -match '^\s*SUPABASE_DB_PASSWORD=(.*)$') {
-    $dbPassword = $matches[1].Trim()
+  if ($_ -match '^\s*SUPABASE_DB_PASSWORD=(.*)$') { $dbPassword = $matches[1].Trim() }
+  if ($_ -match '^\s*SUPABASE_DB_HOST=(.*)$') { $dbHost = $matches[1].Trim() }
+  if ($_ -match '^\s*SUPABASE_DB_PORT=(.*)$') { $dbPort = $matches[1].Trim() }
+  if ($_ -match '^\s*SUPABASE_DB_NAME=(.*)$') { $dbName = $matches[1].Trim() }
+  if ($_ -match '^\s*SUPABASE_DB_USER=(.*)$') { $dbUser = $matches[1].Trim() }
+  if ($_ -match '^\s*DATABASE_URL=(.*)$') {
+    $val = $matches[1].Trim()
+    if ($val -and $val -notmatch 'PASTE') { $databaseUrl = $val }
   }
 }
 
@@ -31,10 +43,17 @@ Database not configured yet.
   exit 1
 }
 
-Write-Host "Linking project $ProjectRef ..."
-npx supabase link --project-ref $ProjectRef --password $dbPassword
+# Prefer direct connection (avoids broken `supabase link` on OneDrive/.temp)
+if (-not $databaseUrl) {
+  $encoded = [uri]::EscapeDataString($dbPassword)
+  $databaseUrl = "postgresql://${dbUser}:${encoded}@${dbHost}:${dbPort}/${dbName}"
+}
 
-Write-Host "Pushing migrations..."
-npx supabase db push
+Write-Host "Pushing migrations to $ProjectRef (direct DB URL)..."
+npx supabase db push --db-url $databaseUrl --yes
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "db push failed (exit $LASTEXITCODE)."
+  exit $LASTEXITCODE
+}
 
 Write-Host "Done."
