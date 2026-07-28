@@ -421,6 +421,27 @@ export function HomeLandingPage() {
         </div>
       </section>
 
+      {/* Owner portal — public entry */}
+      <section className="border-y border-zinc-100 bg-white py-16 md:py-20">
+        <div className="mx-auto max-w-6xl px-5">
+          <FadeIn className="flex flex-col items-center text-center">
+            <h2 className="text-3xl font-extrabold tracking-tight text-zinc-900">בעלי עסקים</h2>
+            <p className="mt-4 max-w-xl text-lg text-zinc-600">
+              נהלו תורים, רשימת המתנה וקישור ללקוחות — בפורטל ייעודי לעסק שלכם בכתובת{' '}
+              <code className="rounded bg-zinc-100 px-2 py-0.5 text-sm" dir="ltr">
+                /portal/ה-slug-שלכם
+              </code>
+            </p>
+            <Link
+              href="/portal"
+              className="mt-8 inline-flex rounded-full bg-zinc-900 px-8 py-3.5 text-sm font-bold text-white transition hover:bg-zinc-800"
+            >
+              כניסה לפורטל הניהול
+            </Link>
+          </FadeIn>
+        </div>
+      </section>
+
       {/* FAQ */}
       <section id="faq" className="py-20 md:py-28">
         <div className="mx-auto grid max-w-6xl gap-12 px-5 md:grid-cols-2">

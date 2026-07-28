@@ -11,6 +11,8 @@ Platform principles: [docs/PLATFORM.md](docs/PLATFORM.md)
 E2E test checklist: [docs/E2E_TEST.md](docs/E2E_TEST.md)
 
 GitHub Pages (customer web): [docs/GITHUB_PAGES.md](docs/GITHUB_PAGES.md)
+
+Admin & owner web portals: [docs/ADMIN.md](docs/ADMIN.md)
 ## Structure
 
 - `supabase/migrations/001_initial_schema.sql`: production-oriented schema, auth mapping, RLS, waitlist offers, and notification logs
