@@ -9,6 +9,8 @@ Supabase connection: [docs/SUPABASE_CONNECTION.md](docs/SUPABASE_CONNECTION.md)
 Platform principles: [docs/PLATFORM.md](docs/PLATFORM.md)
 
 E2E test checklist: [docs/E2E_TEST.md](docs/E2E_TEST.md)
+
+GitHub Pages (customer web): [docs/GITHUB_PAGES.md](docs/GITHUB_PAGES.md)
 ## Structure
 
 - `supabase/migrations/001_initial_schema.sql`: production-oriented schema, auth mapping, RLS, waitlist offers, and notification logs
@@ -19,9 +21,9 @@ E2E test checklist: [docs/E2E_TEST.md](docs/E2E_TEST.md)
 - `supabase/functions/confirm-arrival/index.ts`: customer arrival confirmation flow
 - `supabase/functions/cancel-appointment-by-token/index.ts`: customer self-service cancellation flow
 - `web/app/book/[businessId]/page.tsx`: public booking page
-- `web/app/offer/[offerId]/page.tsx`: public waitlist-offer claim page
-- `web/app/confirm/[token]/page.tsx`: arrival confirmation page (linked from WhatsApp reminders)
-- `web/app/cancel/[token]/page.tsx`: cancellation page (linked from WhatsApp reminders)
+- `web/app/offer/page.tsx`: public waitlist-offer claim page
+- `web/app/confirm/page.tsx`: arrival confirmation page (linked from WhatsApp reminders)
+- `web/app/cancel/page.tsx`: cancellation page (linked from WhatsApp reminders)
 - `mobile/app/index.tsx`: owner-only mobile shell (login, calendar, waitlist, metrics, settings)
 
 ## Environment Variables
@@ -51,7 +53,7 @@ Reminder payloads include `actionButtons` (for example `אשר הגעה` and `ב
 
 with header `x-cron-secret: {CRON_SECRET}` when `CRON_SECRET` is configured.
 
-Customers receive WhatsApp reminders ~24 hours, ~2 hours, and ~1 hour before the appointment with links to `PUBLIC_APP_URL/confirm/{token}` and `PUBLIC_APP_URL/cancel/{token}`.
+Customers receive WhatsApp reminders ~24 hours, ~2 hours, and ~1 hour before the appointment with links to `PUBLIC_APP_URL/confirm?token=...` and `PUBLIC_APP_URL/cancel?token=...`.
 
 ## Local Readiness Checklist
 

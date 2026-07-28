@@ -100,7 +100,7 @@ export async function cancelAppointmentAndTriggerWaitlist(params: {
 
     offersCreated += 1;
 
-    const offerUrl = `${siteUrl}/offer/${offer.id}`;
+    const offerUrl = `${siteUrl}/offer?offerId=${encodeURIComponent(offer.id)}`;
     const message = `התפנה תור עבור ${appointmentDate}. אשרו כאן בהקדם: ${offerUrl}`;
 
     const notificationResult = await sendNotification({

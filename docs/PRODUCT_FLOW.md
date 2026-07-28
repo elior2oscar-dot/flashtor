@@ -19,7 +19,7 @@ Customers never install the mobile app.
    - 24 hours before
    - 2 hours before
    - 1 hour before
-5. WhatsApp message includes confirm/cancel links (`/confirm/{token}`, `/cancel/{token}`).
+5. WhatsApp message includes confirm/cancel links (`/confirm?token=...`, `/cancel?token=...`).
 6. If owner cancels from mobile, waitlist automation notifies waiting customers.
 
 ## Owner journey (Mobile only)

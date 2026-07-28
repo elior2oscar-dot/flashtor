@@ -163,8 +163,10 @@ async function processReminderBatch(
       ? null
       : await ensureConfirmationToken(appointment.id, appointment.appointment_time);
     const cancellationToken = await ensureCancellationToken(appointment.id, appointment.appointment_time);
-    const confirmUrl = token ? `${siteUrl}/confirm/${token}` : null;
-    const cancelUrl = `${siteUrl}/cancel/${cancellationToken}`;
+    const confirmUrl = token
+      ? `${siteUrl}/confirm?token=${encodeURIComponent(token)}`
+      : null;
+    const cancelUrl = `${siteUrl}/cancel?token=${encodeURIComponent(cancellationToken)}`;
     const message = alreadyConfirmed
       ? `FlashTor | ${businessRow.name}\nהתור ב-${formatAppointmentHebrew(
           appointment.appointment_time
