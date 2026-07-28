@@ -12,16 +12,16 @@ export function getPublicAppOrigin(): string {
 
 export function bookingPath(slug: string): string {
   const clean = slug.trim().replace(/^\/+|\/+$/g, '');
-  return `${APP_BASE_PATH}/book/${clean}`;
-}
-
-export function bookingUrl(slug: string): string {
-  return `${getPublicAppOrigin()}${bookingPath(slug)}`;
+  return `${APP_BASE_PATH}/book/${clean}/`;
 }
 
 export function portalPath(slug: string): string {
   const clean = slug.trim().replace(/^\/+|\/+$/g, '');
-  return `${APP_BASE_PATH}/portal/${clean}`;
+  return `${APP_BASE_PATH}/portal/${clean}/`;
+}
+
+export function bookingUrl(slug: string): string {
+  return `${getPublicAppOrigin()}${bookingPath(slug)}`;
 }
 
 export function portalUrl(slug: string): string {

@@ -6,6 +6,7 @@ type CreateBookingRequest = {
   slotId?: string;
   customerName?: string;
   customerPhone?: string;
+  customerEmail?: string | null;
 };
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -24,9 +25,22 @@ Deno.serve(async (request) => {
       return Response.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    const { data: blocked } = await supabase.rpc('is_contact_blocked', {
+      p_business_id: body.businessId,
+      p_phone: body.customerPhone,
+      p_email: body.customerEmail ?? null,
+    });
+
+    if (blocked === true) {
+      return Response.json(
+        { error: 'This contact cannot book online. Please call the business.' },
+        { status: 403 }
+      );
+    }
+
     const { data: slot, error: slotError } = await supabase
       .from('appointment_slots')
-      .select('id, business_id, service_id, slot_start, slot_end, is_available')
+      .select('id, business_id, service_id, staff_id, slot_start, slot_end, is_available')
       .eq('id', body.slotId)
       .eq('business_id', body.businessId)
       .single();
@@ -37,6 +51,18 @@ Deno.serve(async (request) => {
 
     if (!slot.is_available) {
       return Response.json({ error: 'Slot is no longer available' }, { status: 409 });
+    }
+
+    const slotDate = slot.slot_start.slice(0, 10);
+    const { data: closureRow } = await supabase
+      .from('business_closure_dates')
+      .select('id')
+      .eq('business_id', body.businessId)
+      .eq('closure_date', slotDate)
+      .maybeSingle();
+
+    if (closureRow) {
+      return Response.json({ error: 'This date is closed for bookings.' }, { status: 409 });
     }
 
     const { data: slotReservation, error: updateSlotError } = await supabase
@@ -57,8 +83,10 @@ Deno.serve(async (request) => {
         business_id: body.businessId,
         service_id: body.serviceId ?? slot.service_id,
         slot_id: slot.id,
+        staff_id: slot.staff_id,
         customer_name: body.customerName,
         customer_phone: body.customerPhone,
+        customer_email: body.customerEmail?.trim() || null,
         appointment_time: slot.slot_start,
         appointment_end_time: slot.slot_end,
         source: 'web',
@@ -68,10 +96,7 @@ Deno.serve(async (request) => {
       .single();
 
     if (appointmentError || !appointment) {
-      await supabase
-        .from('appointment_slots')
-        .update({ is_available: true })
-        .eq('id', slot.id);
+      await supabase.from('appointment_slots').update({ is_available: true }).eq('id', slot.id);
 
       throw appointmentError ?? new Error('Failed to create appointment.');
     }

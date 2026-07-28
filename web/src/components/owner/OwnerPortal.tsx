@@ -2,25 +2,20 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { Calendar, Copy, LogOut, Users } from 'lucide-react';
+import { Calendar, Copy, LogOut, Settings, Users } from 'lucide-react';
 
 import { useSupabaseSession } from '@/hooks/useSupabaseSession';
 import { bookingUrl } from '@/lib/paths';
+import { normalizePhone } from '@/lib/phone';
+import { addDays, startOfWeek } from '@/lib/scheduling';
 import { Button } from '@/components/ui/button';
+import { OwnerCalendarPanel, type OwnerAppointment } from '@/components/owner/OwnerCalendarPanel';
+import { OwnerSettingsPanel } from '@/components/owner/OwnerSettingsPanel';
 
 type Business = {
   id: string;
   name: string;
   slug: string | null;
-};
-
-type Appointment = {
-  id: string;
-  customer_name: string;
-  customer_phone: string;
-  appointment_time: string;
-  status: string;
-  arrival_confirmed_at: string | null;
 };
 
 type WaitlistRow = {
@@ -31,7 +26,7 @@ type WaitlistRow = {
   status: string;
 };
 
-type Tab = 'appointments' | 'waitlist';
+type Tab = 'calendar' | 'waitlist' | 'settings';
 
 export function OwnerPortal({ slug }: { slug: string }) {
   const { supabase, user, loading: authLoading, signIn, signOut } = useSupabaseSession();
@@ -43,11 +38,13 @@ export function OwnerPortal({ slug }: { slug: string }) {
   const [business, setBusiness] = useState<Business | null>(null);
   const [businessError, setBusinessError] = useState('');
   const [membershipOk, setMembershipOk] = useState(false);
-  const [tab, setTab] = useState<Tab>('appointments');
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [tab, setTab] = useState<Tab>('calendar');
+  const [appointments, setAppointments] = useState<OwnerAppointment[]>([]);
   const [waitlist, setWaitlist] = useState<WaitlistRow[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [copyMsg, setCopyMsg] = useState('');
+  const [calendarView, setCalendarView] = useState<'day' | 'week'>('week');
+  const [viewDate, setViewDate] = useState(() => new Date());
 
   const bookingBase = bookingUrl(slug);
 
@@ -100,17 +97,20 @@ export function OwnerPortal({ slug }: { slug: string }) {
   const loadDashboardData = useCallback(
     async (businessId: string) => {
       setDataLoading(true);
-      const now = new Date().toISOString();
+      const rangeStart = calendarView === 'week' ? startOfWeek(viewDate) : viewDate;
+      const rangeEnd = calendarView === 'week' ? addDays(rangeStart, 7) : addDays(viewDate, 1);
 
       const [apptRes, waitRes] = await Promise.all([
         supabase
           .from('appointments')
-          .select('id, customer_name, customer_phone, appointment_time, status, arrival_confirmed_at')
+          .select(
+            'id, customer_name, customer_phone, customer_email, appointment_time, status, arrival_confirmed_at, staff_id'
+          )
           .eq('business_id', businessId)
           .eq('status', 'booked')
-          .gte('appointment_time', now)
-          .order('appointment_time', { ascending: true })
-          .limit(50),
+          .gte('appointment_time', rangeStart.toISOString())
+          .lt('appointment_time', rangeEnd.toISOString())
+          .order('appointment_time', { ascending: true }),
         supabase
           .from('waitlist')
           .select('id, customer_name, customer_phone, desired_date, status')
@@ -119,11 +119,11 @@ export function OwnerPortal({ slug }: { slug: string }) {
           .limit(50),
       ]);
 
-      setAppointments(apptRes.data ?? []);
+      setAppointments((apptRes.data ?? []) as OwnerAppointment[]);
       setWaitlist(waitRes.data ?? []);
       setDataLoading(false);
     },
-    [supabase]
+    [supabase, calendarView, viewDate]
   );
 
   useEffect(() => {
@@ -172,6 +172,23 @@ export function OwnerPortal({ slug }: { slug: string }) {
     if (response.ok && business) {
       await loadDashboardData(business.id);
     }
+  }
+
+  async function blockContact(appointment: OwnerAppointment) {
+    if (!business) return;
+    const ok = window.confirm(
+      `לחסום את ${appointment.customer_name} מהזמנות עתידיות (טלפון${appointment.customer_email ? ' ואימייל' : ''})?`
+    );
+    if (!ok) return;
+
+    const phone = normalizePhone(appointment.customer_phone);
+    await supabase.from('blocked_contacts').insert({
+      business_id: business.id,
+      customer_phone: phone || appointment.customer_phone,
+      customer_email: appointment.customer_email?.trim() || null,
+      reason: 'לא הגיע — חסימה ידנית',
+      blocked_from_appointment_id: appointment.id,
+    });
   }
 
   async function copyBookingLink() {
@@ -232,9 +249,6 @@ export function OwnerPortal({ slug }: { slug: string }) {
               {submitting ? 'מתחבר...' : 'התחברות'}
             </Button>
           </form>
-          <p className="mt-6 text-center text-xs text-muted-foreground">
-            אין לכם חשבון? הירשמו דרך אפליקציית FlashTor לנייד.
-          </p>
         </div>
       </div>
     );
@@ -254,16 +268,24 @@ export function OwnerPortal({ slug }: { slug: string }) {
   return (
     <div className="min-h-screen bg-zinc-50">
       <header className="border-b border-border bg-card">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
           <div>
             <p className="text-xs text-muted-foreground">פורטל ניהול</p>
             <h1 className="text-xl font-bold">{business?.name}</h1>
             <p className="text-sm text-muted-foreground">/{slug}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={bookingBase}
+              target="_blank"
+              rel="noreferrer"
+              className="hidden text-xs text-sky-600 underline sm:inline"
+            >
+              קישור ללקוחות
+            </a>
             <Button variant="outline" size="sm" onClick={() => void copyBookingLink()}>
               <Copy className="ms-1 size-4" />
-              קישור ללקוחות
+              העתק קישור
             </Button>
             <Button variant="ghost" size="sm" onClick={() => void signOut()}>
               <LogOut className="size-4" />
@@ -273,15 +295,15 @@ export function OwnerPortal({ slug }: { slug: string }) {
         {copyMsg ? <p className="pb-2 text-center text-xs text-emerald-600">{copyMsg}</p> : null}
       </header>
 
-      <div className="mx-auto max-w-5xl px-4 py-6">
-        <div className="mb-6 flex gap-2">
+      <div className="mx-auto max-w-6xl px-4 py-6">
+        <div className="mb-6 flex flex-wrap gap-2">
           <Button
-            variant={tab === 'appointments' ? 'default' : 'outline'}
+            variant={tab === 'calendar' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setTab('appointments')}
+            onClick={() => setTab('calendar')}
           >
             <Calendar className="ms-1 size-4" />
-            תורים קרובים
+            יומן תורים
           </Button>
           <Button
             variant={tab === 'waitlist' ? 'default' : 'outline'}
@@ -289,45 +311,42 @@ export function OwnerPortal({ slug }: { slug: string }) {
             onClick={() => setTab('waitlist')}
           >
             <Users className="ms-1 size-4" />
-            רשימת המתנה
+            המתנה
+          </Button>
+          <Button
+            variant={tab === 'settings' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setTab('settings')}
+          >
+            <Settings className="ms-1 size-4" />
+            הגדרות
           </Button>
         </div>
 
-        {dataLoading ? (
-          <p className="text-muted-foreground">טוען נתונים...</p>
-        ) : tab === 'appointments' ? (
-          <div className="space-y-3">
-            {appointments.length === 0 ? (
-              <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
-                אין תורים קרובים.
-              </p>
-            ) : (
-              appointments.map((a) => (
-                <div
-                  key={a.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4"
-                >
-                  <div>
-                    <p className="font-semibold">{a.customer_name}</p>
-                    <p className="text-sm text-muted-foreground">{a.customer_phone}</p>
-                    <p className="text-sm">
-                      {new Date(a.appointment_time).toLocaleString('he-IL')}
-                      {a.arrival_confirmed_at ? ' · אושר הגעה' : ''}
-                    </p>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={() => void cancelAppointment(a.id)}>
-                    ביטול תור
-                  </Button>
-                </div>
-              ))
-            )}
-          </div>
-        ) : (
+        {tab === 'settings' && business ? (
+          <OwnerSettingsPanel supabase={supabase} businessId={business.id} />
+        ) : null}
+
+        {tab === 'calendar' ? (
+          dataLoading ? (
+            <p className="text-muted-foreground">טוען נתונים...</p>
+          ) : (
+            <OwnerCalendarPanel
+              appointments={appointments}
+              viewMode={calendarView}
+              viewDate={viewDate}
+              onViewModeChange={setCalendarView}
+              onViewDateChange={setViewDate}
+              onCancel={(id) => void cancelAppointment(id)}
+              onBlockContact={(a) => void blockContact(a)}
+            />
+          )
+        ) : null}
+
+        {tab === 'waitlist' ? (
           <div className="space-y-3">
             {waitlist.length === 0 ? (
-              <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
-                אין ממתינים.
-              </p>
+              <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">אין ממתינים.</p>
             ) : (
               waitlist.map((w) => (
                 <div key={w.id} className="rounded-xl border border-border bg-card p-4">
@@ -340,7 +359,7 @@ export function OwnerPortal({ slug }: { slug: string }) {
               ))
             )}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

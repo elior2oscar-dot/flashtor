@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { FlashTorLogo } from './FlashTorLogo';
 import { isUuid } from '../lib/identifiers';
+import { dayBoundsIso } from '../lib/scheduling';
+import { normalizePhone } from '../lib/phone';
 import { supabase, supabaseConfigError } from '../lib/supabase';
 
 type Business = {
@@ -87,6 +89,7 @@ export function CustomerBookingPage({ businessIdentifier }: Props) {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedServiceId, setSelectedServiceId] = useState('');
   const [selectedSlotId, setSelectedSlotId] = useState('');
@@ -97,6 +100,7 @@ export function CustomerBookingPage({ businessIdentifier }: Props) {
 
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [closureDates, setClosureDates] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     void loadInitialData();
@@ -163,6 +167,13 @@ export function CustomerBookingPage({ businessIdentifier }: Props) {
     setBusiness(businessData);
     setServices(serviceData ?? []);
     setSelectedServiceId(serviceData?.[0]?.id ?? '');
+
+    const { data: closures } = await supabase
+      .from('business_closure_dates')
+      .select('closure_date')
+      .eq('business_id', businessData.id);
+
+    setClosureDates(new Set((closures ?? []).map((c) => c.closure_date as string)));
     setLoading(false);
   }
 
@@ -171,16 +182,15 @@ export function CustomerBookingPage({ businessIdentifier }: Props) {
       return;
     }
 
-    const dayStart = new Date(`${dateValue}T00:00:00`);
-    const dayEnd = new Date(`${dateValue}T23:59:59`);
+    const { from, to } = dayBoundsIso(dateValue, 3);
 
     let query = supabase
       .from('appointment_slots')
       .select('id, business_id, service_id, slot_start, slot_end, is_available')
       .eq('business_id', resolvedBusinessId)
       .eq('is_available', true)
-      .gte('slot_start', dayStart.toISOString())
-      .lte('slot_start', dayEnd.toISOString())
+      .gte('slot_start', from)
+      .lte('slot_start', to)
       .order('slot_start', { ascending: true });
 
     if (serviceId) {
@@ -219,6 +229,15 @@ export function CustomerBookingPage({ businessIdentifier }: Props) {
       }
 
       if (joinWaitlist || slotOptions.length === 0) {
+        const { data: blocked } = await supabase.rpc('is_contact_blocked', {
+          p_business_id: resolvedBusinessId,
+          p_phone: phone,
+          p_email: email.trim() || null,
+        });
+        if (blocked) {
+          throw new Error('לא ניתן להירשם — צרו קשר עם העסק.');
+        }
+
         const { error } = await supabase.from('waitlist').insert({
           business_id: resolvedBusinessId,
           service_id: selectedServiceId || null,
@@ -251,7 +270,8 @@ export function CustomerBookingPage({ businessIdentifier }: Props) {
             serviceId: selectedServiceId || null,
             slotId: selectedSlot.id,
             customerName: name,
-            customerPhone: phone,
+            customerPhone: normalizePhone(phone) || phone,
+            customerEmail: email.trim() || null,
           }),
         });
 
@@ -313,6 +333,11 @@ export function CustomerBookingPage({ businessIdentifier }: Props) {
 
   function handleDayClick(day: number) {
     const formattedDate = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (closureDates.has(formattedDate)) {
+      setStatusMessage('תאריך זה סגור להזמנות.');
+      return;
+    }
+    setStatusMessage('');
     setSelectedDate(formattedDate);
   }
 
@@ -469,6 +494,14 @@ export function CustomerBookingPage({ businessIdentifier }: Props) {
               onChange={(event) => setPhone(event.target.value)}
               style={inputStyle}
               required
+            />
+
+            <input
+              type="email"
+              placeholder="אימייל (אופציונלי)"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              style={inputStyle}
             />
 
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', color: '#374151', cursor: 'pointer', marginTop: 4 }}>
