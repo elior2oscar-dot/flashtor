@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "FlashTor Owner",
+    "slug": "flashtor-owner",
+    "scheme": "flashtor",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

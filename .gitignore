@@ -1,0 +1,11 @@
+node_modules/
+web/node_modules/
+web/.next/
+.env
+.env.local
+web/.env.local
+supabase/.env.local
+mobile/.env
+.expo/
+dist/
+*.log

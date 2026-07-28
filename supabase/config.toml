@@ -1,0 +1,63 @@
+# FlashTor local Supabase configuration
+# Docs: https://supabase.com/docs/guides/cli/config
+
+project_id = "flashtor"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[db.pooler]
+enabled = false
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000", "https://localhost:3000"]
+jwt_expiry = 3600
+enable_signup = true
+
+[edge_runtime]
+enabled = true
+policy = "per_worker"
+inspector_port = 8083
+
+# Public customer + cron flows (no JWT required on the gateway)
+[functions.create-booking]
+verify_jwt = false
+
+[functions.claim-waitlist-offer]
+verify_jwt = false
+
+[functions.confirm-arrival]
+verify_jwt = false
+
+[functions.cancel-appointment-by-token]
+verify_jwt = false
+
+[functions.send-appointment-reminders]
+verify_jwt = false
+
+# Owner-only cancellation requires a valid Supabase Auth session
+[functions.cancel-appointment]
+verify_jwt = true
