@@ -1,0 +1,26 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: var(--font-rubik), ui-sans-serif, system-ui, sans-serif;
+  --color-brand: #18181b;
+  --color-brand-muted: #71717a;
+  --color-surface: #fafafa;
+  --color-border: #e4e4e7;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-white text-zinc-900 antialiased;
+}
+
+.dot-grid {
+  background-image: radial-gradient(circle, #d4d4d8 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.gradient-hero {
+  background: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(24, 24, 27, 0.06), transparent);
+}
