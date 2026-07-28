@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'FlashTor',
-  description: 'FlashTor booking and waitlist',
+  title: 'FlashTor | קביעת תורים והמתנה',
+  description: 'קבעו תור או הצטרפו לרשימת המתנה דרך הקישור האישי מהעסק. תזכורות WhatsApp ואישור הגעה.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
