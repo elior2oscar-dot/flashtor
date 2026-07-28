@@ -20,14 +20,34 @@ export function getPublicAppOrigin(): string {
   return DEFAULT_SITE_ORIGIN;
 }
 
+function cleanSlug(slug: string) {
+  return slug.trim().replace(/^\/+|\/+$/g, '');
+}
+
+/** In-app href for Next.js Link (basePath is applied by Next). */
+export function bookingHref(slug: string): string {
+  return `/book/${cleanSlug(slug)}/`;
+}
+
+export function portalHref(slug: string): string {
+  return `/portal/${cleanSlug(slug)}/`;
+}
+
+export function profileHref(slug: string): string {
+  return `/p/${cleanSlug(slug)}/`;
+}
+
+/** Absolute public URLs (clipboard / open in new tab). */
 export function bookingPath(slug: string): string {
-  const clean = slug.trim().replace(/^\/+|\/+$/g, '');
-  return `${APP_BASE_PATH}/book/${clean}/`;
+  return `${APP_BASE_PATH}/book/${cleanSlug(slug)}/`;
 }
 
 export function portalPath(slug: string): string {
-  const clean = slug.trim().replace(/^\/+|\/+$/g, '');
-  return `${APP_BASE_PATH}/portal/${clean}/`;
+  return `${APP_BASE_PATH}/portal/${cleanSlug(slug)}/`;
+}
+
+export function profilePath(slug: string): string {
+  return `${APP_BASE_PATH}/p/${cleanSlug(slug)}/`;
 }
 
 export function bookingUrl(slug: string): string {
@@ -36,4 +56,8 @@ export function bookingUrl(slug: string): string {
 
 export function portalUrl(slug: string): string {
   return `${getPublicAppOrigin()}${portalPath(slug)}`;
+}
+
+export function profileUrl(slug: string): string {
+  return `${getPublicAppOrigin()}${profilePath(slug)}`;
 }

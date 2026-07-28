@@ -2,14 +2,15 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { Calendar, Copy, LogOut, Settings, Users } from 'lucide-react';
+import { Calendar, Copy, LogOut, Settings, UserRound, Users } from 'lucide-react';
 
 import { useSupabaseSession } from '@/hooks/useSupabaseSession';
-import { bookingUrl } from '@/lib/paths';
+import { bookingUrl, profileUrl } from '@/lib/paths';
 import { normalizePhone } from '@/lib/phone';
-import { addDays, startOfWeek } from '@/lib/scheduling';
+import { addDays, startOfWeek, toDateInputValue } from '@/lib/scheduling';
 import { Button } from '@/components/ui/button';
 import { OwnerCalendarPanel, type OwnerAppointment } from '@/components/owner/OwnerCalendarPanel';
+import { OwnerProfilePanel } from '@/components/owner/OwnerProfilePanel';
 import { OwnerSettingsPanel } from '@/components/owner/OwnerSettingsPanel';
 
 type Business = {
@@ -26,7 +27,7 @@ type WaitlistRow = {
   status: string;
 };
 
-type Tab = 'calendar' | 'waitlist' | 'settings';
+type Tab = 'calendar' | 'waitlist' | 'profile' | 'settings';
 
 export function OwnerPortal({ slug }: { slug: string }) {
   const { supabase, user, loading: authLoading, signIn, signOut } = useSupabaseSession();
@@ -40,6 +41,7 @@ export function OwnerPortal({ slug }: { slug: string }) {
   const [membershipOk, setMembershipOk] = useState(false);
   const [tab, setTab] = useState<Tab>('calendar');
   const [appointments, setAppointments] = useState<OwnerAppointment[]>([]);
+  const [closedDates, setClosedDates] = useState<string[]>([]);
   const [waitlist, setWaitlist] = useState<WaitlistRow[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [copyMsg, setCopyMsg] = useState('');
@@ -47,6 +49,7 @@ export function OwnerPortal({ slug }: { slug: string }) {
   const [viewDate, setViewDate] = useState(() => new Date());
 
   const bookingBase = bookingUrl(slug);
+  const publicProfile = profileUrl(slug);
 
   const loadBusiness = useCallback(async () => {
     setBusinessError('');
@@ -100,7 +103,7 @@ export function OwnerPortal({ slug }: { slug: string }) {
       const rangeStart = calendarView === 'week' ? startOfWeek(viewDate) : viewDate;
       const rangeEnd = calendarView === 'week' ? addDays(rangeStart, 7) : addDays(viewDate, 1);
 
-      const [apptRes, waitRes] = await Promise.all([
+      const [apptRes, waitRes, closureRes] = await Promise.all([
         supabase
           .from('appointments')
           .select(
@@ -117,10 +120,17 @@ export function OwnerPortal({ slug }: { slug: string }) {
           .eq('business_id', businessId)
           .order('created_at', { ascending: true })
           .limit(50),
+        supabase
+          .from('business_closure_dates')
+          .select('closure_date')
+          .eq('business_id', businessId)
+          .gte('closure_date', toDateInputValue(rangeStart))
+          .lt('closure_date', toDateInputValue(rangeEnd)),
       ]);
 
       setAppointments((apptRes.data ?? []) as OwnerAppointment[]);
       setWaitlist(waitRes.data ?? []);
+      setClosedDates((closureRes.data ?? []).map((c) => c.closure_date as string));
       setDataLoading(false);
     },
     [supabase, calendarView, viewDate]
@@ -276,16 +286,16 @@ export function OwnerPortal({ slug }: { slug: string }) {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <a
-              href={bookingBase}
+              href={publicProfile}
               target="_blank"
               rel="noreferrer"
               className="hidden text-xs text-sky-600 underline sm:inline"
             >
-              קישור ללקוחות
+              פרופיל ללקוחות
             </a>
             <Button variant="outline" size="sm" onClick={() => void copyBookingLink()}>
               <Copy className="ms-1 size-4" />
-              העתק קישור
+              העתק קישור הזמנה
             </Button>
             <Button variant="ghost" size="sm" onClick={() => void signOut()}>
               <LogOut className="size-4" />
@@ -314,6 +324,14 @@ export function OwnerPortal({ slug }: { slug: string }) {
             המתנה
           </Button>
           <Button
+            variant={tab === 'profile' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setTab('profile')}
+          >
+            <UserRound className="ms-1 size-4" />
+            פרופיל
+          </Button>
+          <Button
             variant={tab === 'settings' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setTab('settings')}
@@ -322,6 +340,10 @@ export function OwnerPortal({ slug }: { slug: string }) {
             הגדרות
           </Button>
         </div>
+
+        {tab === 'profile' && business ? (
+          <OwnerProfilePanel supabase={supabase} businessId={business.id} />
+        ) : null}
 
         {tab === 'settings' && business ? (
           <OwnerSettingsPanel supabase={supabase} businessId={business.id} />
@@ -333,6 +355,7 @@ export function OwnerPortal({ slug }: { slug: string }) {
           ) : (
             <OwnerCalendarPanel
               appointments={appointments}
+              closedDates={closedDates}
               viewMode={calendarView}
               viewDate={viewDate}
               onViewModeChange={setCalendarView}

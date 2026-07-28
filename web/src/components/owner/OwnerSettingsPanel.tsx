@@ -1,10 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Plus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Field, Modal, inputClassName } from '@/components/admin/Modal';
+import { OwnerGoogleCalendarSync } from '@/components/owner/OwnerGoogleCalendarSync';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { addDays, toDateInputValue } from '@/lib/scheduling';
 
 type StaffRow = {
   id: string;
@@ -33,11 +36,54 @@ export function OwnerSettingsPanel({ supabase, businessId }: OwnerSettingsPanelP
   const [hours, setHours] = useState<HourRow[]>([]);
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [closures, setClosures] = useState<{ id: string; closure_date: string; label: string | null }[]>([]);
-  const [newClosureDate, setNewClosureDate] = useState('');
+  const [closureModal, setClosureModal] = useState(false);
+  const [closureStart, setClosureStart] = useState('');
+  const [closureEnd, setClosureEnd] = useState('');
+  const [closureLabel, setClosureLabel] = useState('חופשה');
+  const [closureError, setClosureError] = useState('');
+  const [closureSaving, setClosureSaving] = useState(false);
   const [staffModal, setStaffModal] = useState(false);
   const [staffForm, setStaffForm] = useState({ name: '', imageUrl: '' });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+
+  const [singleDate, setSingleDate] = useState('');
+  const [singleDateSaving, setSingleDateSaving] = useState(false);
+  const [singleDateError, setSingleDateError] = useState('');
+
+  /** Collapse consecutive single-day closures into ranges for display. */
+  const closureRanges = useMemo(() => {
+    const sorted = [...closures].sort((a, b) => a.closure_date.localeCompare(b.closure_date));
+    const ranges: { start: string; end: string; label: string | null; ids: string[] }[] = [];
+    for (const row of sorted) {
+      const last = ranges[ranges.length - 1];
+      if (last) {
+        const nextDay = toDateInputValue(addDays(new Date(`${last.end}T12:00:00`), 1));
+        if (row.closure_date === nextDay && (row.label ?? '') === (last.label ?? '')) {
+          last.end = row.closure_date;
+          last.ids.push(row.id);
+          continue;
+        }
+      }
+      ranges.push({
+        start: row.closure_date,
+        end: row.closure_date,
+        label: row.label,
+        ids: [row.id],
+      });
+    }
+    return ranges;
+  }, [closures]);
+
+  const singleDayClosures = useMemo(
+    () => closureRanges.filter((r) => r.start === r.end),
+    [closureRanges]
+  );
+
+  const vacationRanges = useMemo(
+    () => closureRanges.filter((r) => r.start !== r.end),
+    [closureRanges]
+  );
 
   const load = useCallback(async () => {
     const [bizRes, hoursRes, staffRes, closureRes] = await Promise.all([
@@ -73,20 +119,90 @@ export function OwnerSettingsPanel({ supabase, businessId }: OwnerSettingsPanelP
     await load();
   }
 
-  async function addClosure() {
-    if (!newClosureDate) return;
-    await supabase.from('business_closure_dates').insert({
-      business_id: businessId,
-      closure_date: newClosureDate,
-      label: 'חופשה',
-    });
-    setNewClosureDate('');
+  async function addSingleClosedDate() {
+    setSingleDateError('');
+    if (!singleDate) {
+      setSingleDateError('בחרו תאריך לסגירה.');
+      return;
+    }
+
+    setSingleDateSaving(true);
+    const { error } = await supabase.from('business_closure_dates').upsert(
+      {
+        business_id: businessId,
+        closure_date: singleDate,
+        label: 'יום סגור',
+      },
+      { onConflict: 'business_id,closure_date' }
+    );
+    setSingleDateSaving(false);
+
+    if (error) {
+      setSingleDateError(error.message);
+      return;
+    }
+
+    setSingleDate('');
     await load();
   }
 
-  async function removeClosure(id: string) {
-    await supabase.from('business_closure_dates').delete().eq('id', id);
+  function openClosureModal() {
+    const today = toDateInputValue(new Date());
+    setClosureStart(today);
+    setClosureEnd(today);
+    setClosureLabel('חופשה');
+    setClosureError('');
+    setClosureModal(true);
+  }
+
+  async function addClosureRange() {
+    setClosureError('');
+    if (!closureStart || !closureEnd) {
+      setClosureError('יש לבחור תאריך התחלה וסיום.');
+      return;
+    }
+    if (closureEnd < closureStart) {
+      setClosureError('תאריך הסיום חייב להיות אחרי תאריך ההתחלה.');
+      return;
+    }
+
+    const rows: { business_id: string; closure_date: string; label: string }[] = [];
+    let cursor = new Date(`${closureStart}T12:00:00`);
+    const end = new Date(`${closureEnd}T12:00:00`);
+    while (cursor <= end) {
+      rows.push({
+        business_id: businessId,
+        closure_date: toDateInputValue(cursor),
+        label: closureLabel.trim() || 'חופשה',
+      });
+      cursor = addDays(cursor, 1);
+    }
+
+    setClosureSaving(true);
+    const { error } = await supabase.from('business_closure_dates').upsert(rows, {
+      onConflict: 'business_id,closure_date',
+      ignoreDuplicates: false,
+    });
+    setClosureSaving(false);
+
+    if (error) {
+      setClosureError(error.message);
+      return;
+    }
+
+    setClosureModal(false);
     await load();
+  }
+
+  async function removeClosureRange(ids: string[]) {
+    await supabase.from('business_closure_dates').delete().in('id', ids);
+    await load();
+  }
+
+  function formatClosureRange(start: string, end: string) {
+    const s = new Date(`${start}T12:00:00`).toLocaleDateString('he-IL');
+    const e = new Date(`${end}T12:00:00`).toLocaleDateString('he-IL');
+    return start === end ? s : `${s} – ${e}`;
   }
 
   async function addStaff() {
@@ -202,30 +318,148 @@ export function OwnerSettingsPanel({ supabase, businessId }: OwnerSettingsPanelP
         </div>
       </section>
 
+      <OwnerGoogleCalendarSync supabase={supabase} businessId={businessId} onApplied={load} />
+
       <section className="rounded-xl border border-border bg-card p-4">
-        <h2 className="text-lg font-semibold">חופשות / סגירות</h2>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <input
-            type="date"
-            className={inputClassName}
-            value={newClosureDate}
-            onChange={(e) => setNewClosureDate(e.target.value)}
-          />
-          <Button type="button" size="sm" onClick={() => void addClosure()}>
-            הוסף תאריך סגור
+        <h2 className="text-lg font-semibold">סגירת תאריך ספציפי</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          בחרו יום אחד — הוא ייחסם ביומן ההזמנות של הלקוחות.
+        </p>
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="text-sm">
+            תאריך
+            <input
+              type="date"
+              className={`${inputClassName} mt-1 min-w-[11rem]`}
+              value={singleDate}
+              onChange={(e) => setSingleDate(e.target.value)}
+            />
+          </label>
+          <Button type="button" size="sm" disabled={singleDateSaving} onClick={() => void addSingleClosedDate()}>
+            {singleDateSaving ? 'שומר…' : 'סגור תאריך זה'}
           </Button>
         </div>
-        <ul className="mt-3 space-y-1 text-sm">
-          {closures.map((c) => (
-            <li key={c.id} className="flex items-center justify-between gap-2 rounded border border-border px-3 py-2">
-              <span>{c.closure_date}</span>
-              <button type="button" className="text-destructive underline" onClick={() => void removeClosure(c.id)}>
-                הסר
-              </button>
+        {singleDateError ? <p className="mt-2 text-sm text-red-500">{singleDateError}</p> : null}
+        <ul className="mt-4 space-y-2 text-sm">
+          {singleDayClosures.length === 0 ? (
+            <li className="rounded-lg border border-dashed border-border px-4 py-4 text-center text-muted-foreground">
+              אין תאריכים סגורים בודדים.
             </li>
-          ))}
+          ) : (
+            singleDayClosures.map((r) => (
+              <li
+                key={r.ids[0]}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3"
+              >
+                <div>
+                  <p className="font-medium">{formatClosureRange(r.start, r.end)}</p>
+                  <p className="text-xs text-amber-800">{r.label ?? 'יום סגור'} · חסום ביומן</p>
+                </div>
+                <button
+                  type="button"
+                  className="text-destructive underline"
+                  onClick={() => void removeClosureRange(r.ids)}
+                >
+                  פתח מחדש
+                </button>
+              </li>
+            ))
+          )}
         </ul>
       </section>
+
+      <section className="rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">חופשות / סגירות</h2>
+            <p className="mt-1 text-sm text-muted-foreground">הגדירו טווח תאריכים — כל הימים בטווח ייסגרו להזמנות.</p>
+          </div>
+          <Button type="button" size="sm" className="gap-1" onClick={openClosureModal}>
+            <Plus className="size-4" />
+            הוסף חופשה
+          </Button>
+        </div>
+        <ul className="mt-4 space-y-2 text-sm">
+          {vacationRanges.length === 0 ? (
+            <li className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-muted-foreground">
+              אין חופשות. לחצו על &quot;הוסף חופשה&quot; לבחירת תאריך התחלה וסיום.
+            </li>
+          ) : (
+            vacationRanges.map((r) => (
+              <li
+                key={`${r.start}-${r.end}-${r.ids[0]}`}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-3"
+              >
+                <div>
+                  <p className="font-medium">{formatClosureRange(r.start, r.end)}</p>
+                  <p className="text-xs text-muted-foreground">{r.label ?? 'חופשה'}</p>
+                </div>
+                <button
+                  type="button"
+                  className="text-destructive underline"
+                  onClick={() => void removeClosureRange(r.ids)}
+                >
+                  הסר
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      </section>
+
+      <Modal
+        open={closureModal}
+        title="הוספת חופשה / סגירה"
+        description="בחרו תאריך התחלה ותאריך סיום."
+        onClose={() => setClosureModal(false)}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setClosureModal(false)} disabled={closureSaving}>
+              ביטול
+            </Button>
+            <Button type="button" onClick={() => void addClosureRange()} disabled={closureSaving}>
+              {closureSaving ? 'שומר…' : 'שמור טווח'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="תאריך התחלה">
+              <input
+                type="date"
+                className={inputClassName}
+                value={closureStart}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setClosureStart(v);
+                  if (closureEnd && closureEnd < v) setClosureEnd(v);
+                }}
+                required
+              />
+            </Field>
+            <Field label="תאריך סיום">
+              <input
+                type="date"
+                className={inputClassName}
+                value={closureEnd}
+                min={closureStart || undefined}
+                onChange={(e) => setClosureEnd(e.target.value)}
+                required
+              />
+            </Field>
+          </div>
+          <Field label="תיאור (אופציונלי)">
+            <input
+              className={inputClassName}
+              value={closureLabel}
+              onChange={(e) => setClosureLabel(e.target.value)}
+              placeholder="חופשה"
+            />
+          </Field>
+          {closureError ? <p className="text-sm text-red-500">{closureError}</p> : null}
+        </div>
+      </Modal>
 
       <Modal open={staffModal} title="עובד חדש" onClose={() => setStaffModal(false)}>
         <div className="space-y-3">
