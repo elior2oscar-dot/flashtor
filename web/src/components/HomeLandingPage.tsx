@@ -181,7 +181,7 @@ export function HomeLandingPage() {
             </a>
           </nav>
           <Link
-            href="/book/e2e-demo"
+            href="/demo"
             className="rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800"
           >
             דמו ללקוח
@@ -217,7 +217,7 @@ export function HomeLandingPage() {
             <FadeIn delay={0.24}>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link
-                  href="/book/e2e-demo"
+                  href="/demo"
                   className="inline-flex items-center gap-2 rounded-full bg-zinc-900 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-zinc-900/15 transition hover:bg-zinc-800"
                 >
                   נסו הזמנת תור לדוגמה
@@ -451,7 +451,7 @@ export function HomeLandingPage() {
               הדמו מדגים בדיוק איך לקוח קובע תור דרך הקישור — כמו בעסק אמיתי.
             </p>
             <Link
-              href="/book/e2e-demo"
+              href="/demo"
               className="mt-8 inline-flex rounded-full bg-white px-8 py-3.5 text-sm font-bold text-zinc-900 transition hover:bg-zinc-100"
             >
               פתחו דמו הזמנה
