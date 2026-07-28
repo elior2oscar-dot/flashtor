@@ -49,7 +49,13 @@ export function Modal({ open, title, description, onClose, children, footer, wid
             <h2 className="text-lg font-semibold">{title}</h2>
             {description ? <p className="mt-1 text-sm text-zinc-400">{description}</p> : null}
           </div>
-          <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={onClose}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="shrink-0 text-zinc-200 hover:bg-zinc-800 hover:text-white"
+            onClick={onClose}
+          >
             <X className="size-4" />
           </Button>
         </div>

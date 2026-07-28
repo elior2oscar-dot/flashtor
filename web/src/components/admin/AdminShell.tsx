@@ -48,7 +48,12 @@ export function AdminShell({ email, active, onNavigate, onSignOut, children }: A
           ))}
         </nav>
         <div className="border-t border-zinc-800 p-3">
-          <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={onSignOut}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2 text-zinc-200 hover:bg-zinc-800 hover:text-white"
+            onClick={onSignOut}
+          >
             <LogOut className="size-4" />
             Sign out
           </Button>
@@ -57,7 +62,12 @@ export function AdminShell({ email, active, onNavigate, onSignOut, children }: A
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-zinc-800 px-6 py-4 lg:hidden">
           <span className="font-semibold">Platform admin</span>
-          <Button variant="ghost" size="sm" onClick={onSignOut}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-zinc-200 hover:bg-zinc-800 hover:text-white"
+            onClick={onSignOut}
+          >
             <LogOut className="size-4" />
           </Button>
         </header>
